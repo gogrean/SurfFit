@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
 from SurfMessages import ErrorMessages, InfoMessages
-from aux import rotate_point, get_edges
+from utils import rotate_point, get_edges
 import prof
 import datetime
 

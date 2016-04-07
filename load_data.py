@@ -21,7 +21,12 @@ class Image():
         else:
             img_hdr = []
             img_data = []
-            for i in range(len(filaname)):
+            if ext == 0:
+                ext = [ext] * len(filename)
+            elif len(ext) != len(filename):
+                raise IndexError('Length of the extension array must match \
+                    number of images.')
+            for i in range(len(filename)):
                 img_hdu = pyfits.open(filename[i])
                 img_data.append(img_hdu[ext[i]].data)
                 img_hdr.append(utils.clean_header(img_hdu[ext[i]].header))
