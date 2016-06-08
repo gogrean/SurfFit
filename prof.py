@@ -75,7 +75,8 @@ class Region(object):
         raw_rate, net_rate, bkg_rate = 0., 0., 0.
         err_raw_rate_sq, err_net_rate_sq, err_bkg_rate_sq = 0., 0., 0.
 
-        npix = 0
+        exp_raw = 0.
+        exp_bkg = 0.
         for i in range(len(counts_img_data)):
             if not bkg_corr[i]:
                 if not 'BKGNORM' in bkg_img_hdr[i]:
@@ -86,37 +87,30 @@ class Region(object):
                     bkg_img_hdr[i]['EXPOSURE']
             else:
                 bkg_corr_i = bkg_corr[i]
+                bkgnorm = 1.
             for pixel in pixels_in_bin:
                 j, k = pixel[0], pixel[1]
-                if exp_img_data[i][j, k] != 0:
-                    exp_val = exp_img_data[i][j, k]
-                    npix += 1
-                else:
+                if exp_img_data[i][j, k] == 0:
                     continue
+                exp_val = exp_img_data[i][j, k]
+                exp_val_bkg = exp_img_data[i][j, k] * \
+                              bkg_img_hdr[i]['EXPOSURE'] / \
+                              counts_img_hdr[i]['EXPOSURE']
                 raw_cts += counts_img_data[i][j, k]
-                net_cts += counts_img_data[i][j, k] - \
-                    bkg_img_data[i][j, k] * bkg_corr_i
                 bkg_cts += bkg_img_data[i][j, k]
-                raw_rate += counts_img_data[i][j, k] / exp_val
-                net_rate += (counts_img_data[i][j, k] -
-                    bkg_img_data[i][j, k] * bkg_corr_i) / exp_val
-                bkg_rate += bkg_img_data[i][j, k] * \
-                    bkg_corr_i / exp_val
-                err_raw_rate_sq += counts_img_data[i][j, k] / exp_val**2
-                err_net_rate_sq += (counts_img_data[i][j, k] + \
-                    bkg_img_data[i][j, k] * bkg_corr_i**2) / exp_val**2
-                err_bkg_rate_sq += bkg_img_data[i][j, k] * \
-                    bkg_corr_i**2 / exp_val**2
+                exp_raw += exp_val
+                exp_bkg += exp_val_bkg / bkgnorm
+            net_cts = raw_cts - bkg_cts * bkg_corr_i
         if only_net_cts:
             return net_cts
-        raw_rate /= npix
-        net_rate /= npix
-        bkg_rate /= npix
-        err_raw_rate = np.sqrt(err_raw_rate_sq) / npix
-        err_net_rate = np.sqrt(err_net_rate_sq) / npix
-        err_bkg_rate = np.sqrt(err_bkg_rate_sq) / npix
-        return raw_cts, net_cts, bkg_cts, raw_rate, err_raw_rate, \
-            net_rate, err_net_rate, bkg_rate, err_bkg_rate
+        raw_rate = raw_cts / exp_raw
+        bkg_rate = bkg_cts / exp_bkg
+        net_rate = raw_rate - bkg_rate
+        err_raw_rate = np.sqrt(raw_cts) / exp_raw
+        err_bkg_rate = np.sqrt(bkg_cts) / exp_bkg
+        err_net_rate = np.sqrt(raw_cts / exp_raw**2 + bkg_cts / exp_bkg**2)
+        return raw_cts, net_cts, bkg_cts, \
+               raw_rate, err_raw_rate, net_rate, err_net_rate, bkg_rate, err_bkg_rate
 
     def merge_bins(self, counts_img, bkg_img, exp_img,
                    min_counts, islog=True):
@@ -205,15 +199,17 @@ class Region(object):
 
         profile = []
         for current_bin in bins:
-            raw_cts, net_cts, bkg_cts, raw_rate, err_raw_rate, \
-                net_rate, err_net_rate, bkg_rate, err_bkg_rate = \
+            raw_cts, net_cts, bkg_cts, \
+                raw_rate, err_raw_rate, net_rate, err_net_rate, \
+                bkg_rate, err_bkg_rate = \
                     self.get_bin_vals(counts_img, bkg_img, exp_img,
                                       current_bin[2])
             bin_radius = (current_bin[0] + current_bin[1]) / 2.
             bin_width = current_bin[1] - bin_radius
-            bin_values = (bin_radius, bin_width, raw_cts, net_cts, bkg_cts,
-                raw_rate, err_raw_rate, net_rate, err_net_rate,
-                bkg_rate, err_bkg_rate)
+            bin_values = (bin_radius, bin_width, raw_cts, 
+                          net_cts, bkg_cts, 
+                          raw_rate, err_raw_rate, net_rate, err_net_rate,
+                          bkg_rate, err_bkg_rate)
             bin_values = bin_pix2arcmin(bin_values, pix2arcmin)
             profile.append(bin_values)
         return profile
